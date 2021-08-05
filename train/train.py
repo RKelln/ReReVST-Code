@@ -307,9 +307,11 @@ print('Training Start.')
 
 min_total_loss = np.inf
 cur_total_loss = 0.
+epoch_total_loss = 0.
 
 for epoch in range(opt.load_epoch+1, opt.epoches+1):
-
+    epoch_total_loss = 0.
+    
     for iteration, sequence in enumerate(loader):
         
         FirstFrame = sequence['Content'].to(device)
@@ -419,7 +421,8 @@ for epoch in range(opt.load_epoch+1, opt.epoches+1):
         ###########################
 
         cur_total_loss += Loss.item()
-        
+        epoch_total_loss += Loss.item()
+
         if iteration % 10 == 0:
 
             print("[Epoch %d/%d][Iter %d/%d] New Style: %.3f, Content: %.3f, Old Style: %.3f, Recon: %.3f, TV: %.3f, Temporal: %.3f (%.3f), GAN: %.3f" \
@@ -444,17 +447,17 @@ for epoch in range(opt.load_epoch+1, opt.epoches+1):
                                                 }, iteration)
 
         if iteration % opt.log == 0:
-            cur_total_loss /= opt.log
-
-            if cur_total_loss < min_total_loss:
-                min_total_loss = cur_total_loss
-                torch.save(optimizer.state_dict(), '%s/optimizer-epoch-%d.pth' % (opt.outf, epoch))
-                torch.save(style_net.state_dict(), '%s/style_net-latest-epoch-%d(%.2e)(W_%d_%d)(Sigma_%.2e)-%s.pth' % 
-                    (opt.outf, 1, opt.temporalWeight, opt.data_w * opt.data_motion_level, opt.data_w * opt.data_shift_level, opt.data_sigma * opt.data_noise_level, TimeName))
+            total_loss = cur_total_loss / opt.log
+            cur_total_loss = 0.
+            print(iteration, " total loss: ", cur_total_loss, min_total_loss)
+            if total_loss < min_total_loss:
+                min_total_loss = total_loss
+                torch.save(optimizer.state_dict(), '%s/optimizer-epoch-%d(minloss_%.0f).pth' % (opt.outf, epoch, total_loss))
+                torch.save(style_net.state_dict(), '%s/style_net-latest-epoch-%d(minloss_%.0f)(%.2e)(W_%d_%d)(Sigma_%.2e)-%s.pth' % 
+                    (opt.outf, epoch, total_loss, opt.temporalWeight, opt.data_w * opt.data_motion_level, opt.data_w * opt.data_shift_level, opt.data_sigma * opt.data_noise_level, TimeName))
 
                 if opt.adaversarial_loss:
                     torch.save(netD.state_dict(), '%s/netD-epoch-%d.pth' % (opt.outf, epoch))
-            cur_total_loss = 0
 
             save_figure(FirstFrame,'%d_FirstFrame' % (epoch))
             save_figure(Style,'%d_Style' % (epoch))
@@ -474,6 +477,21 @@ for epoch in range(opt.load_epoch+1, opt.epoches+1):
                 save_figure(FakeStyledSecondFrame_1,'%d_FakeStyledSecondFrame_1' % (epoch))
 
             Validation.SaveResults(epoch)
+
+    # end of epoch
+    torch.save(optimizer.state_dict(), '%s/optimizer-epoch-%d(loss_%.0f).pth' % (opt.outf, epoch, epoch_total_loss))
+    torch.save(style_net.state_dict(), '%s/style_net-latest-epoch-%d(loss_%.0f)(%.2e)(W_%d_%d)(Sigma_%.2e)-%s.pth' % 
+        (opt.outf, epoch, epoch_total_loss, opt.temporalWeight, opt.data_w * opt.data_motion_level, opt.data_w * opt.data_shift_level, opt.data_sigma * opt.data_noise_level, TimeName))
+
+    if opt.adaversarial_loss:
+        torch.save(netD.state_dict(), '%s/netD-epoch-%d-loss_%.0f.pth' % (opt.outf, epoch, epoch_total_loss))
+
+torch.save(optimizer.state_dict(), '%s/optimizer-epoch-final.pth' % (opt.outf))
+torch.save(style_net.state_dict(), '%s/style_net-latest-epoch-final(%.2e)(W_%d_%d)(Sigma_%.2e)-%s.pth' % 
+    (opt.outf, opt.temporalWeight, opt.data_w * opt.data_motion_level, opt.data_w * opt.data_shift_level, opt.data_sigma * opt.data_noise_level, TimeName))
+
+if opt.adaversarial_loss:
+    torch.save(netD.state_dict(), '%s/netD-epoch-final.pth' % (opt.outf))
 
 writer.close()
 

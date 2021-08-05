@@ -429,8 +429,14 @@ class FrameDataset(data.Dataset):
         # https://discuss.pytorch.org/t/warp-video-frame-from-optical-flow/6013/6
 
         # Data Lists
-        self.content_img_list = glob.glob(content_path+"/*.jpg")
-        self.style_img_list = glob.glob(style_path+"/*.jpg")
+        def file_list(dir):
+            files = []
+            files += glob.glob(dir+"/**/*.jpg", recursive=True)
+            files += glob.glob(dir+"/**/*.png", recursive=True)
+            return files
+
+        self.content_img_list = file_list(content_path)
+        self.style_img_list = file_list(style_path)
         self.style_img_list_len = len(self.style_img_list)
 
         # Parameters
